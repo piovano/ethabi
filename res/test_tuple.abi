@@ -1,0 +1,88 @@
+[
+	{
+		"constant": false,
+		"inputs": [
+			{
+				"components": [
+					{
+						"name": "s",
+						"type": "string"
+					},
+					{
+						"name": "b",
+						"type": "bool[]"
+					}
+				],
+				"name": "d",
+				"type": "tuple"
+			}
+		],
+		"name": "testDynamic",
+		"outputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"constant": false,
+		"inputs": [
+			{
+				"components": [
+					{
+						"name": "u",
+						"type": "uint256"
+					},
+					{
+						"name": "a",
+						"type": "address[2]"
+					}
+				],
+				"name": "s",
+				"type": "tuple"
+			},
+			{
+				"components": [
+					{
+						"name": "s",
+						"type": "string"
+					},
+					{
+						"name": "b",
+						"type": "bool[]"
+					}
+				],
+				"name": "d",
+				"type": "tuple"
+			}
+		],
+		"name": "testBoth",
+		"outputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"constant": false,
+		"inputs": [
+			{
+				"components": [
+					{
+						"name": "u",
+						"type": "uint256"
+					},
+					{
+						"name": "a",
+						"type": "address[2]"
+					}
+				],
+				"name": "s",
+				"type": "tuple"
+			}
+		],
+		"name": "testStatic",
+		"outputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "function"
+	}
+]

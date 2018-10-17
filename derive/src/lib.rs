@@ -96,6 +96,10 @@ fn to_syntax_string(param_type: &ethabi::ParamType) -> proc_macro2::TokenStream 
 		ParamType::FixedArray(ref param_type, ref x) => {
 			let param_type_quote = to_syntax_string(param_type);
 			quote! { ethabi::ParamType::FixedArray(Box::new(#param_type_quote), #x) }
+		},
+		ParamType::Tuple(ref param_types) => {
+			let param_type_quotes = param_types.iter().map(|t| to_syntax_string(t)).collect::<Vec<_>>();
+			quote! { ethabi::ParamType::Tuple(vec![ #(#param_type_quotes),* ]) }
 		}
 	}
 }
@@ -103,15 +107,28 @@ fn to_syntax_string(param_type: &ethabi::ParamType) -> proc_macro2::TokenStream 
 fn to_ethabi_param_vec<'a, P: 'a>(params: P) -> proc_macro2::TokenStream
 	where P: IntoIterator<Item = &'a Param>
 {
-	let p = params.into_iter().map(|x| {
-		let name = &x.name;
-		let kind = to_syntax_string(&x.kind);
+	fn to_ethabi_param(param: &Param) -> proc_macro2::TokenStream {
+		let name = &param.name;
+		let kind = to_syntax_string(&param.kind);
+		let components = if let Some(ref components) = param.components {
+			let components = components.iter().map(|component| {
+				to_ethabi_param(component)
+			}).collect::<Vec<_>>();
+			quote! { Some(vec![ #(#components),* ]) }
+		} else {
+			quote! { None }
+		};
 		quote! {
 			ethabi::Param {
 				name: #name.to_owned(),
-				kind: #kind
+				kind: #kind,
+				components: #components,
 			}
 		}
+	}
+
+	let p = params.into_iter().map(|x| {
+		to_ethabi_param(x)
 	}).collect::<Vec<_>>();
 
 	quote! { vec![ #(#p),* ] }
@@ -134,13 +151,17 @@ fn rust_type(input: &ParamType) -> proc_macro2::TokenStream {
 		ParamType::FixedArray(ref kind, size) => {
 			let t = rust_type(&*kind);
 			quote! { [#t, #size] }
+		},
+		ParamType::Tuple(ref kinds) => {
+			let ts = kinds.iter().map(|k| rust_type(&*k)).collect::<Vec<_>>();
+			quote! { (#(#ts),*) }
 		}
 	}
 }
 
-fn template_param_type(input: &ParamType, index: usize) -> proc_macro2::TokenStream {
-	let t_ident = syn::Ident::new(&format!("T{}", index), Span::call_site());
-	let u_ident = syn::Ident::new(&format!("U{}", index), Span::call_site());
+fn _template_param_type(input: &ParamType, prefix: &str, index: usize) -> proc_macro2::TokenStream {
+	let t_ident = syn::Ident::new(&format!("T{}{}", prefix, index), Span::call_site());
+	let u_ident = syn::Ident::new(&format!("U{}{}", prefix, index), Span::call_site());
 	match *input {
 		ParamType::Address => quote! { #t_ident: Into<ethabi::Address> },
 		ParamType::Bytes => quote! { #t_ident: Into<ethabi::Bytes> },
@@ -161,15 +182,51 @@ fn template_param_type(input: &ParamType, index: usize) -> proc_macro2::TokenStr
 			quote! {
 				#t_ident: Into<[#u_ident; #size]>, #u_ident: Into<#t>
 			}
+		},
+		ParamType::Tuple(ref kinds) => {
+			let sub_tokens = kinds.iter().enumerate().map(|(i, k)| {
+				_template_param_type(k, &format!("{}{}_", prefix, index), i)
+			}).collect::<Vec<_>>();
+
+			quote! {
+				#(#sub_tokens),*
+			}
 		}
 	}
 }
 
-fn from_template_param(input: &ParamType, name: &syn::Ident) -> proc_macro2::TokenStream {
+fn template_param_type(input: &ParamType, index: usize) -> proc_macro2::TokenStream {
+	_template_param_type(input, "", index)
+}
+
+fn _template_param_type_name(input: &ParamType, prefix: &str, index: usize) -> proc_macro2::TokenStream {
+	match *input {
+		ParamType::Tuple(ref kinds) => {
+			let sub_tokens = kinds.iter().enumerate().map(|(i, k)| {
+				_template_param_type_name(k, &format!("{}{}_", prefix, index), i)
+			}).collect::<Vec<_>>();
+
+			quote! {
+				( #(#sub_tokens),* )
+			}
+		}
+		_ => {
+			let t_ident = syn::Ident::new(&format!("T{}{}", prefix, index), Span::call_site());
+			quote! { #t_ident }
+		}
+	}
+}
+
+fn template_param_type_name(input: &ParamType, index: usize) -> proc_macro2::TokenStream {
+	_template_param_type_name(input, "", index)
+}
+
+fn from_template_param(input: &ParamType, name: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
 	match *input {
 		ParamType::Array(_) => quote! { #name.into_iter().map(Into::into).collect::<Vec<_>>() },
 		ParamType::FixedArray(_, _) => quote! { (Box::new(#name.into()) as Box<[_]>).into_vec().into_iter().map(Into::into).collect::<Vec<_>>() },
-		_ => quote! {#name.into() },
+		ParamType::Tuple(_) => quote! { #name },
+		_ => quote! { #name.into() },
 	}
 }
 
@@ -204,6 +261,20 @@ fn to_token(name: &proc_macro2::TokenStream, kind: &ParamType) -> proc_macro2::T
 				}
 			}
 		},
+		ParamType::Tuple(ref kinds) => {
+			let ts = kinds.iter().enumerate().map(|(i, k)| {
+				let i_literal = proc_macro2::Literal::usize_unsuffixed(i);
+				let inner_name = from_template_param(k, &quote! { #name.#i_literal });
+				to_token(&inner_name, k)
+			}).collect::<Vec<_>>();
+			quote! {
+				// note the double {{
+				{
+					let v = vec![ #(#ts),* ];
+					ethabi::Token::Tuple(v)
+				}
+			}
+		}
 	}
 }
 
@@ -255,24 +326,33 @@ fn from_token(kind: &ParamType, token: &proc_macro2::TokenStream) -> proc_macro2
 				}
 			}
 		},
+		ParamType::Tuple(ref kinds) => {
+			let inner_name = quote! { iter.next().expect(INTERNAL_ERR) };
+			let ts = kinds.iter().map(|k| {
+				from_token(k, &inner_name)
+			}).collect::<Vec<_>>();
+			quote! {
+				{
+					let mut iter = #token.to_tuple().expect(INTERNAL_ERR).into_iter();
+					(#(#ts),*)
+				}
+			}
+		}
 	}
 }
 
-fn input_names(inputs: &Vec<Param>) -> Vec<syn::Ident> {
+fn input_names(inputs: &Vec<Param>) -> Vec<proc_macro2::TokenStream> {
 	inputs
 		.iter()
 		.enumerate()
-		.map(|(index, param)| if param.name.is_empty() {
-			syn::Ident::new(&format!("param{}", index), Span::call_site())
-		} else {
-			syn::Ident::new(&rust_variable(&param.name), Span::call_site())
+		.map(|(index, param)| {
+			let ident = if param.name.is_empty() {
+				syn::Ident::new(&format!("param{}", index), Span::call_site())
+			} else {
+				syn::Ident::new(&rust_variable(&param.name), Span::call_site())
+			};
+			quote! { #ident }
 		})
-		.collect()
-}
-
-fn get_template_names(kinds: &Vec<proc_macro2::TokenStream>) -> Vec<syn::Ident> {
-	kinds.iter().enumerate()
-		.map(|(index, _)| syn::Ident::new(&format!("T{}", index), Span::call_site()))
 		.collect()
 }
 

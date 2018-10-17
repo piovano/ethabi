@@ -62,9 +62,11 @@ mod tests {
 			inputs: vec![Param {
 				name: "a".to_owned(),
 				kind: ParamType::Uint(32),
+				components: None,
 			}, Param {
 				name: "b".to_owned(),
 				kind: ParamType::Bool,
+				components: None,
 			}],
 			outputs: vec![],
 			constant: false,

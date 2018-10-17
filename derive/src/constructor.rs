@@ -2,7 +2,7 @@ use ethabi;
 use proc_macro2::TokenStream;
 
 use super::{
-	input_names, template_param_type, rust_type, get_template_names, to_token, from_template_param,
+	input_names, template_param_type, template_param_type_name, to_token, from_template_param,
 	to_ethabi_param_vec,
 };
 
@@ -24,17 +24,18 @@ impl<'a> From<&'a ethabi::Constructor> for Constructor {
 			.map(|(index, param)| template_param_type(&param.kind, index))
 			.collect();
 
-		// [Uint, Bytes, Vec<Uint>]
-		let kinds: Vec<_> = c.inputs
-			.iter()
-			.map(|param| rust_type(&param.kind))
-			.collect();
+//		// [Uint, Bytes, Vec<Uint>]
+//		let kinds: Vec<_> = c.inputs
+//			.iter()
+//			.map(|param| rust_type(&param.kind))
+//			.collect();
 
 		// [T0, T1, T2]
-		let template_names: Vec<_> = get_template_names(&kinds);
+		let template_names = c.inputs.iter().enumerate()
+			.map(|(index, param)| template_param_type_name(&param.kind, index));
 
 		// [param0: T0, hello_world: T1, param2: T2]
-		let inputs_definitions = input_names.iter().zip(template_names.iter())
+		let inputs_definitions = input_names.iter().zip(template_names)
 			.map(|(param_name, template_name)| quote! { #param_name: #template_name });
 
 		let inputs_definitions = Some(quote! { code: ethabi::Bytes }).into_iter()
@@ -110,6 +111,7 @@ mod tests {
 				ethabi::Param {
 					name: "foo".into(),
 					kind: ethabi::ParamType::Uint(256),
+                    components: None,
 				}
 			],
 		};
@@ -122,7 +124,8 @@ mod tests {
 				let c = ethabi::Constructor {
 					inputs: vec![ethabi::Param {
 						name: "foo".to_owned(),
-						kind: ethabi::ParamType::Uint(256usize)
+						kind: ethabi::ParamType::Uint(256usize),
+						components: None,
 					}],
 				};
 				let tokens = vec![ethabi::Token::Uint(foo.into())];

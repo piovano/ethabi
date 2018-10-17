@@ -1,8 +1,8 @@
 [package]
 name = "ethabi"
-version = "6.1.0"
-authors = ["Parity Technologies <admin@parity.io>"]
-homepage = "https://github.com/paritytech/ethabi"
+version = "7.0.0"
+authors = ["Parity Technologies <admin@parity.io>", "Piovano <piovano@outlook.com>"]
+homepage = "https://github.com/piovano/ethabi"
 license = "MIT"
 keywords = ["ethereum", "eth", "abi", "solidity", "cli"]
 description = "Easy to use conversion of ethereum contract calls to bytecode."

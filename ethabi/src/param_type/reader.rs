@@ -31,6 +31,40 @@ impl Reader {
 			}
 		}
 
+		// check if it is a expanded tuple.
+		if let Some('(') = name.chars().next() {
+			let mut subtypes = Vec::new();
+			let mut nested = 0isize;
+			let mut last_item = 1;
+			for (i, ch) in name.chars().enumerate() {
+				match ch {
+					'(' => {
+						nested += 1;
+					},
+					')' => {
+						nested -= 1;
+						if nested < 0 {
+							return Err(ErrorKind::InvalidName(name.to_owned()).into());
+						} else if nested == 0 {
+							let subtype = try!(Reader::read(&name[last_item..i]));
+							subtypes.push(subtype);
+							last_item = i + 1;
+						}
+					},
+					',' if nested == 1 => {
+						let subtype = try!(Reader::read(&name[last_item..i]));
+						subtypes.push(subtype);
+						last_item = i + 1;
+					},
+					_ => {},
+				}
+			}
+			if nested != 0 || last_item != name.chars().count() {
+				return Err(ErrorKind::InvalidName(name.to_owned()).into());
+			}
+			return Ok(ParamType::Tuple(subtypes));
+		}
+
 		let result = match name {
 			"address" => ParamType::Address,
 			"bytes" => ParamType::Bytes,
@@ -50,6 +84,7 @@ impl Reader {
 				let len = try!(usize::from_str_radix(&s[5..], 10));
 				ParamType::FixedBytes(len)
 			},
+			"tuple" => ParamType::Tuple(vec![]),
 			_ => {
 				return Err(ErrorKind::InvalidName(name.to_owned()).into());
 			}
@@ -96,5 +131,17 @@ mod tests {
 	fn test_read_mixed_arrays() {
 		assert_eq!(Reader::read("bool[][3]").unwrap(), ParamType::FixedArray(Box::new(ParamType::Array(Box::new(ParamType::Bool))), 3));
 		assert_eq!(Reader::read("bool[3][]").unwrap(), ParamType::Array(Box::new(ParamType::FixedArray(Box::new(ParamType::Bool), 3))));
+	}
+
+	#[test]
+	fn test_read_array_of_tuples() {
+		assert_eq!(Reader::read("(bool[],address)[][3]").unwrap(), ParamType::FixedArray(Box::new(ParamType::Array(Box::new(ParamType::Tuple(vec![ParamType::Array(Box::new(ParamType::Bool)), ParamType::Address])))), 3));
+		assert_eq!(Reader::read("(bool,address[])[3][]").unwrap(), ParamType::Array(Box::new(ParamType::FixedArray(Box::new(ParamType::Tuple(vec![ParamType::Bool, ParamType::Array(Box::new(ParamType::Address))])), 3))));
+	}
+
+	#[test]
+	fn test_read_tuple() {
+		assert_eq!(Reader::read("(uint[],bytes)").unwrap(), ParamType::Tuple(vec![ParamType::Array(Box::new(ParamType::Uint(256))), ParamType::Bytes]));
+		assert_eq!(Reader::read("(bool,(address,string))").unwrap(), ParamType::Tuple(vec![ParamType::Bool, ParamType::Tuple(vec![ParamType::Address, ParamType::String])]));
 	}
 }

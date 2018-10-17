@@ -50,6 +50,10 @@ pub enum Token {
 	///
 	/// solidity name eg. int[], bool[], address[5][]
 	Array(Vec<Token>),
+	/// Token.
+	///
+	/// solidity name eg. (bool,address,string)
+	Tuple(Vec<Token>),
 }
 
 impl fmt::Display for Token {
@@ -67,12 +71,30 @@ impl fmt::Display for Token {
 					.join(",");
 
 				write!(f, "[{}]", s)
-			}
+			},
+			Token::Tuple(ref tuple) => {
+				let s = tuple.iter()
+					.map(|ref t| format!("{}", t))
+					.collect::<Vec<String>>()
+					.join(",");
+
+				write!(f, "({})", s)
+			},
 		}
 	}
 }
 
 impl Token {
+    /// Returns whether the type of the token is dynamic.
+    pub fn is_dynamic(&self) -> bool {
+        match *self {
+            Token::Bytes(_) | Token::String(_) | Token::Array(_) => true,
+            Token::FixedArray(ref tokens) => tokens.iter().find(|token| token.is_dynamic()).is_some(),
+            Token::Tuple(ref tokens) => tokens.iter().find(|token| token.is_dynamic()).is_some(),
+            _ => false,
+        }
+    }
+
 	/// Check whether the type of the token matches the given parameter type.
 	///
 	/// Numeric types (`Int` and `Uint`) type check if the size of the token
@@ -110,6 +132,12 @@ impl Token {
 			Token::FixedArray(ref tokens) =>
 				if let ParamType::FixedArray(ref param_type, size) = *param_type {
 					size == tokens.len() && tokens.iter().all(|t| t.type_check(param_type))
+				} else {
+					false
+				},
+			Token::Tuple(ref tokens) =>
+				if let ParamType::Tuple(ref param_types) = *param_type {
+					param_types.len() == tokens.len() && tokens.iter().zip(param_types.iter()).all(|(t, param_type)| t.type_check(param_type))
 				} else {
 					false
 				},
@@ -188,6 +216,14 @@ impl Token {
 		}
 	}
 
+	/// Converts token to...
+	pub fn to_tuple(self) -> Option<Vec<Token>> {
+		match self {
+			Token::Tuple(arr) => Some(arr),
+			_ => None,
+		}
+	}
+
 	/// Check if all the types of the tokens match the given parameter types.
 	pub fn types_check(tokens: &[Token], param_types: &[ParamType]) -> bool {
 		param_types.len() == tokens.len() && {
@@ -232,5 +268,9 @@ mod tests {
 		assert_not_type_check(vec![Token::FixedArray(vec![Token::Bool(false), Token::Bool(true)])], vec![ParamType::FixedArray(Box::new(ParamType::Bool), 3)]);
 		assert_not_type_check(vec![Token::FixedArray(vec![Token::Bool(false), Token::Uint(0.into())])], vec![ParamType::FixedArray(Box::new(ParamType::Bool), 2)]);
 		assert_not_type_check(vec![Token::FixedArray(vec![Token::Bool(false), Token::Bool(true)])], vec![ParamType::FixedArray(Box::new(ParamType::Address), 2)]);
+
+		assert_type_check(vec![Token::Tuple(vec![Token::Bool(false), Token::Uint(0.into())])], vec![ParamType::Tuple(vec![ParamType::Bool, ParamType::Uint(256)])]);
+		assert_not_type_check(vec![Token::Tuple(vec![Token::Bool(false), Token::Uint(0.into())])], vec![ParamType::Tuple(vec![ParamType::Bool, ParamType::Uint(256), ParamType::Address])]);
+		assert_not_type_check(vec![Token::Tuple(vec![Token::Bool(false), Token::Uint(0.into())])], vec![ParamType::Tuple(vec![ParamType::Bool, ParamType::Address])]);
 	}
 }

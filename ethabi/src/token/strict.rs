@@ -157,5 +157,40 @@ mod tests {
 			])
 		);
 	}
+
+	#[test]
+	fn tokenize_tuple_array() {
+		assert_eq!(
+			StrictTokenizer::tokenize(&ParamType::Array(Box::new(ParamType::Tuple(vec![ParamType::Bool, ParamType::Address]))), "[(true,1111111111111111111111111111111111111111),(false,2222222222222222222222222222222222222222)]").unwrap(),
+			Token::Array(vec![
+				Token::Tuple(vec![Token::Bool(true), Token::Address([0x11u8; 20].into())]),
+				Token::Tuple(vec![Token::Bool(false), Token::Address([0x22u8; 20].into())]),
+			])
+		);
+	}
+
+	#[test]
+	fn tokenize_empty_tuple() {
+		assert_eq!(
+			StrictTokenizer::tokenize(&ParamType::Tuple(vec![]), "()").unwrap(),
+			Token::Tuple(vec![])
+		);
+	}
+
+	#[test]
+	fn tokenize_tuple() {
+		assert_eq!(
+			StrictTokenizer::tokenize(&ParamType::Tuple(vec![ParamType::Address, ParamType::Array(Box::new(ParamType::Bool))]), "(1111111111111111111111111111111111111111,[true,1,0,false])").unwrap(),
+			Token::Tuple(vec![Token::Address([0x11u8; 20].into()), Token::Array(vec![Token::Bool(true), Token::Bool(true), Token::Bool(false), Token::Bool(false)])])
+		);
+	}
+
+	#[test]
+	fn tokenize_nested_tuple() {
+		assert_eq!(
+			StrictTokenizer::tokenize(&ParamType::Tuple(vec![ParamType::Address, ParamType::Tuple(vec![ParamType::Bool, ParamType::String])]), "(1111111111111111111111111111111111111111,(true,piovano))").unwrap(),
+			Token::Tuple(vec![Token::Address([0x11u8; 20].into()), Token::Tuple(vec![Token::Bool(true), Token::String("piovano".to_owned())])])
+		);
+	}
 }
 

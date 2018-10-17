@@ -4,7 +4,7 @@ use proc_macro2::TokenStream;
 use syn::export::Span;
 
 use super::{
-	input_names, template_param_type, rust_type, get_template_names, from_template_param, to_token,
+	input_names, template_param_type, template_param_type_name, from_template_param, to_token,
 	to_ethabi_param_vec, get_output_kinds, from_token
 };
 
@@ -66,17 +66,18 @@ impl<'a> From<&'a ethabi::Function> for Function {
 		let declarations = f.inputs.iter().enumerate()
 			.map(|(index, param)| template_param_type(&param.kind, index));
 
-		// [Uint, Bytes, Vec<Uint>]
-		let kinds: Vec<_> = f.inputs
-			.iter()
-			.map(|param| rust_type(&param.kind))
-			.collect();
+//		// [Uint, Bytes, Vec<Uint>]
+//		let kinds: Vec<_> = f.inputs
+//			.iter()
+//			.map(|param| rust_type(&param.kind))
+//			.collect();
 
 		// [T0, T1, T2]
-		let template_names: Vec<_> = get_template_names(&kinds);
+		let template_names = f.inputs.iter().enumerate()
+			.map(|(index, param)| template_param_type_name(&param.kind, index));
 
 		// [param0: T0, hello_world: T1, param2: T2]
-		let definitions = input_names.iter().zip(template_names.iter())
+		let definitions = input_names.iter().zip(template_names)
 			.map(|(param_name, template_name)| quote! { #param_name: #template_name });
 
 		let template_params = declarations.zip(definitions)
@@ -270,12 +271,14 @@ mod tests {
 				ethabi::Param {
 					name: "foo".into(),
 					kind: ethabi::ParamType::Address,
+                    components: None,
 				}
 			],
 			outputs: vec![
 				ethabi::Param {
 					name: "bar".into(),
 					kind: ethabi::ParamType::Uint(256),
+                    components: None,
 				}
 			],
 			constant: false,
@@ -293,11 +296,13 @@ mod tests {
 						name: "hello".into(),
 						inputs: vec![ethabi::Param {
 							name: "foo".to_owned(),
-							kind: ethabi::ParamType::Address
+							kind: ethabi::ParamType::Address,
+							components: None,
 						}],
 						outputs: vec![ethabi::Param {
 							name: "bar".to_owned(),
-							kind: ethabi::ParamType::Uint(256usize)
+							kind: ethabi::ParamType::Uint(256usize),
+							components: None,
 						}],
 						constant: false,
 					}
@@ -347,20 +352,24 @@ mod tests {
 				ethabi::Param {
 					name: "foo".into(),
 					kind: ethabi::ParamType::FixedArray(Box::new(ethabi::ParamType::Address), 2),
+					components: None,
 				},
 				ethabi::Param {
 					name: "bar".into(),
 					kind: ethabi::ParamType::Array(Box::new(ethabi::ParamType::Uint(256))),
+					components: None,
 				}
 			],
 			outputs: vec![
 				ethabi::Param {
 					name: "".into(),
 					kind: ethabi::ParamType::Uint(256),
+					components: None,
 				},
 				ethabi::Param {
 					name: "".into(),
 					kind: ethabi::ParamType::String,
+					components: None,
 				}
 			],
 			constant: false,
@@ -378,17 +387,21 @@ mod tests {
 						name: "multi".into(),
 						inputs: vec![ethabi::Param {
 							name: "foo".to_owned(),
-							kind: ethabi::ParamType::FixedArray(Box::new(ethabi::ParamType::Address), 2usize)
+							kind: ethabi::ParamType::FixedArray(Box::new(ethabi::ParamType::Address), 2usize),
+							components: None,
 						}, ethabi::Param {
 							name: "bar".to_owned(),
-							kind: ethabi::ParamType::Array(Box::new(ethabi::ParamType::Uint(256usize)))
+							kind: ethabi::ParamType::Array(Box::new(ethabi::ParamType::Uint(256usize))),
+							components: None,
 						}],
 						outputs: vec![ethabi::Param {
 							name: "".to_owned(),
-							kind: ethabi::ParamType::Uint(256usize)
+							kind: ethabi::ParamType::Uint(256usize),
+							components: None,
 						}, ethabi::Param {
 							name: "".to_owned(),
-							kind: ethabi::ParamType::String
+							kind: ethabi::ParamType::String,
+							components: None,
 						}],
 						constant: false,
 					}

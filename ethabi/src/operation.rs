@@ -77,6 +77,7 @@ mod tests {
 				Param {
 					name: "a".to_owned(),
 					kind: ParamType::Address,
+					components: None,
 				}
 			],
 			outputs: vec![],

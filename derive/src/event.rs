@@ -3,7 +3,7 @@ use heck::{SnakeCase, CamelCase};
 use proc_macro2::TokenStream;
 use syn::export::Span;
 
-use super::{rust_type, to_syntax_string, from_token, get_template_names, to_token};
+use super::{rust_type, to_syntax_string, template_param_type_name, from_token, to_token};
 
 /// Structure used to generate contract's event interface.
 pub struct Event {
@@ -68,7 +68,8 @@ impl<'a> From<&'a ethabi::Event> for Event {
 			.collect();
 
 		// [T0, T1, T2]
-		let template_names: Vec<_> = get_template_names(&topic_kinds);
+		let template_names = e.inputs.iter().enumerate()
+			.map(|(index, param)| template_param_type_name(&param.kind, index)).collect::<Vec<_>>();
 
 		let filter_declarations: Vec<_> = topic_kinds.iter().zip(template_names.iter())
 			.map(|(kind, template_name)| quote! { #template_name: Into<ethabi::Topic<#kind>> })

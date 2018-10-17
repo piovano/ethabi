@@ -15,6 +15,8 @@ An Ethereum smart contract is bytecode, EVM, on the Ethereum blockchain. Among t
 
 This library encodes function calls and decodes their output.
 
+This library supports experimental ABI specification v2.
+
 [Documentation](https://docs.rs/ethabi)
 
 ### Installation

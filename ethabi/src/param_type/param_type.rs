@@ -24,6 +24,8 @@ pub enum ParamType {
 	FixedBytes(usize),
 	/// Array with fixed size.
 	FixedArray(Box<ParamType>, usize),
+	/// Tuple.
+	Tuple(Vec<ParamType>),
 }
 
 impl fmt::Display for ParamType {
@@ -33,6 +35,16 @@ impl fmt::Display for ParamType {
 }
 
 impl ParamType {
+	/// returns whether this param type is dynamic.
+	pub fn is_dynamic(&self) -> bool {
+		match *self {
+			ParamType::Bytes | ParamType::String | ParamType::Array(_) => true,
+			ParamType::FixedArray(ref param, _) => param.is_dynamic(),
+			ParamType::Tuple(ref params) => params.iter().find(|param| param.is_dynamic()).is_some(),
+			_ => false,
+		}
+	}
+
     /// returns whether a zero length byte slice (`0x`) is
     /// a valid encoded form of this param type
     pub fn is_empty_bytes_valid_encoding(&self) -> bool {
@@ -60,5 +72,6 @@ mod tests {
 		assert_eq!(format!("{}", ParamType::Array(Box::new(ParamType::Bool))), "bool[]".to_owned());
 		assert_eq!(format!("{}", ParamType::FixedArray(Box::new(ParamType::String), 2)), "string[2]".to_owned());
 		assert_eq!(format!("{}", ParamType::FixedArray(Box::new(ParamType::Array(Box::new(ParamType::Bool))), 2)), "bool[][2]".to_owned());
+		assert_eq!(format!("{}", ParamType::Tuple(vec![ParamType::Array(Box::new(ParamType::Address)), ParamType::String])), "(address[],string)".to_owned());
 	}
 }

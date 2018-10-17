@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+use std::fmt;
 use ParamType;
 
 /// Output formatter for param type.
@@ -16,7 +18,33 @@ impl Writer {
 			ParamType::String => "string".to_owned(),
 			ParamType::FixedArray(ref param, len) => format!("{}[{}]", Writer::write(param), len),
 			ParamType::Array(ref param) => format!("{}[]", Writer::write(param)),
+			ParamType::Tuple(ref params) => format!("({})", TupleParams::new(&params)),
 		}
+	}
+}
+
+struct TupleParams<'a>(RefCell<Option<::std::slice::Iter<'a, ParamType>>>);
+
+impl<'a> fmt::Display for TupleParams<'a> {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		let mut iter = match self.0.borrow_mut().take() {
+			Some(t) => t,
+			None => panic!("Format: was already formatted once"),
+		};
+		if let Some(first) = iter.next() {
+			try!(fmt::Display::fmt(&first, f));
+			for param in iter {
+				try!(f.write_str(","));
+				try!(fmt::Display::fmt(&param, f));
+			}
+		}
+		Ok(())
+	}
+}
+
+impl<'a> TupleParams<'a> {
+	fn new(params: &'a Vec<ParamType>) -> Self {
+		TupleParams(RefCell::new(Some(params.iter())))
 	}
 }
 
@@ -37,5 +65,6 @@ mod tests {
 		assert_eq!(Writer::write(&ParamType::Array(Box::new(ParamType::Bool))), "bool[]".to_owned());
 		assert_eq!(Writer::write(&ParamType::FixedArray(Box::new(ParamType::String), 2)), "string[2]".to_owned());
 		assert_eq!(Writer::write(&ParamType::FixedArray(Box::new(ParamType::Array(Box::new(ParamType::Bool))), 2)), "bool[][2]".to_owned());
+		assert_eq!(Writer::write(&ParamType::Tuple(vec![ParamType::Bool, ParamType::Tuple(vec![ParamType::Address, ParamType::String])])), "(bool,(address,string))".to_owned())
 	}
 }

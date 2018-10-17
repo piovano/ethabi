@@ -23,7 +23,69 @@ pub trait Tokenizer {
 			ParamType::Int(_) => Self::tokenize_int(value).map(Into::into).map(Token::Int),
 			ParamType::Array(ref p) => Self::tokenize_array(value, p).map(Token::Array),
 			ParamType::FixedArray(ref p, len) => Self::tokenize_fixed_array(value, p, len).map(Token::FixedArray),
+			ParamType::Tuple(ref ps) => Self::tokenize_tuple(value, ps).map(Token::Tuple),
 		}.chain_err(|| format!("Cannot parse {}", param))
+	}
+
+	/// Tries to parse a value as a tuple.
+	fn tokenize_tuple(value: &str, params: &[ParamType]) -> Result<Vec<Token>, Error> {
+		if Some('(') != value.chars().next() || Some(')') != value.chars().last() {
+			return Err(ErrorKind::InvalidData.into());
+		}
+
+		if value.chars().count() == 2 {
+			return Ok(vec![]);
+		}
+
+		let mut result = vec![];
+		let mut nested = 0isize;
+		let mut ignore = false;
+		let mut last_item = 1;
+		let mut params = params.iter();
+		for (i, ch) in value.chars().enumerate() {
+			match ch {
+				'(' if ignore == false => {
+					nested += 1;
+				},
+				'[' if ignore == false => {
+					nested += 1;
+				},
+				')' if ignore == false => {
+					nested -= 1;
+					if nested < 0 {
+						return Err(ErrorKind::InvalidData.into());
+					} else if nested == 0 {
+						if let Some(param) = params.next() {
+							let sub = &value[last_item..i];
+							let token = try!(Self::tokenize(param, sub));
+							result.push(token);
+							last_item = i + 1;
+						} else {
+							return Err(ErrorKind::InvalidData.into());
+						}
+					}
+				},
+				']' if ignore == false => {
+					nested -= 1;
+				},
+				'"' => {
+					ignore = !ignore;
+				},
+				',' if nested == 1 && ignore == false => {
+					if let Some(param) = params.next() {
+						let sub = &value[last_item..i];
+						let token = try!(Self::tokenize(param, sub));
+						result.push(token);
+						last_item = i + 1;
+					} else {
+						return Err(ErrorKind::InvalidData.into());
+					}
+				},
+				_ => ()
+			}
+		}
+
+		Ok(result)
 	}
 
 	/// Tries to parse a value as a vector of tokens of fixed size.
@@ -54,6 +116,9 @@ pub trait Tokenizer {
 				'[' if ignore == false => {
 					nested += 1;
 				},
+				'(' if ignore == false => {
+					nested += 1;
+				},
 				']' if ignore == false => {
 					nested -= 1;
 					if nested < 0 {
@@ -64,6 +129,9 @@ pub trait Tokenizer {
 						result.push(token);
 						last_item = i + 1;
 					}
+				},
+				')' if ignore == false => {
+					nested -= 1;
 				},
 				'"' => {
 					ignore = !ignore;
